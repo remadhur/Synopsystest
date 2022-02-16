@@ -27,7 +27,7 @@ parameters:
   default: sa
 
 variables:
-- group: terraform-secrets
+- group: dev-secrets
 
 #  Terraform Storage Provision should be enabled for the first time run of piplinline
 - name: TerraformStorageProvision
