@@ -1,0 +1,52 @@
+# -- pipline for Virtual Machine Infrastructure Deployment
+
+trigger: none
+
+name: Infrastructure Deployment - ${{ parameters.Environment }}-${{ parameters.location }}
+
+#-- Parameters
+parameters:
+- name: Environment
+  type: string
+  default: dev
+
+- name: TerraformMasterModuleDirectoryName
+  type: string
+  default: 'Deployment_Virtual_Machine'
+
+- name: TerraformVersion
+  type: string
+  default: '0.15.3'
+
+- name: location
+  type: string
+  default: eastus
+
+- name: locationshortprefix
+  type: string
+  default: eu
+
+
+#  Terraform Storage Provision should be enabled for the first time run of piplinline
+- name: TerraformStorageProvision
+  type: boolean
+  default: false
+  values:
+  - true
+  - false
+
+#-- Varibales
+variables:
+- group: terraform-secrets
+
+stages:
+- template: ./terraform-stages-template.yml
+  parameters:
+    Environment: ${{ parameters.Environment }}
+    AzureSubscription: $(AzureSubscriptionServiceConnectionName)
+    TerraformDirectory: ${{ parameters.TerraformMasterModuleDirectoryName }}
+    TerraformVersion: ${{ parameters.TerraformVersion }}
+    location: ${{ parameters.location }}
+    provisionStorage: ${{ parameters.TerraformStorageProvision }}
+    ${{ if eq( parameters.location, 'eastus' ) }}:
+     locationshortprefix: 'eu'
