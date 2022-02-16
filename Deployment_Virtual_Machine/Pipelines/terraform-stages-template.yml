@@ -1,0 +1,172 @@
+#-- This template will build the terraform code by stages
+#-- By using this template we can resue the code to build multiple enviroemnets
+
+#Parameters
+parameters:
+  - name: Environment
+    type: string
+  - name: AzureSubscription
+    type: string
+  - name: prefix
+    type: string
+    default: tbs
+  - name: component
+    type: string
+    default: terraform
+  - name: provisionStorage
+    type: string
+  - name: TerraformDirectory
+    type: string
+  - name: TerraformVersion
+    type: string
+  - name: location
+    type: string
+  - name: locationshortprefix
+    type: string
+
+
+stages:
+- stage: Terraform_Plan_${{ parameters.Environment }}
+  displayName: Plan ${{ parameters.Environment }}
+  jobs:
+  - job: Terraform_Plan
+    displayName: Plan Terraform
+    # Avoid concurrent Terraform runs on PRs, which would result in failures due to exclusive lock on remote state file.
+    # condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/master'), variables['RUN_FLAG_TERRAFORM']))
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+
+    - template: ./terraform-init-template.yml
+      parameters:
+        Environment: ${{ parameters.Environment }}
+        TerraformDirectory: ${{ parameters.TerraformDirectory }}
+        provisionStorage: ${{ parameters.provisionStorage }}
+        AzureSubscription: $(AzureSubscriptionServiceConnectionName)
+        location: ${{ parameters.location }}
+        locationshortprefix: ${{ parameters.locationshortprefix }}
+        TerraformVersion: ${{ parameters.TerraformVersion }}
+
+    - bash: |
+        set -eu
+        export ARM_CLIENT_SECRET=$(spn-secret)
+        echo "current working directory"
+        pwd
+        echo "list of files avalibale in the current directory"
+        ls -la
+        terraform plan -input=false -out=tfplan -var-file=global_var.tfvars -var-file=${{ parameters.Environment }}_var.tfvars -var 'Environment=${{ parameters.Environment }}' -var 'locationshortprefix=${{ parameters.locationshortprefix  }}' -var 'rg_location=${{ parameters.location }}'
+        # terraform plan \
+        # -input=false \
+        # -var 'Environment=${{ parameters.Environment }}' \
+        # -var 'locationshortprefix=${{ parameters.locationshortprefix  }}' \
+        # -var 'rg_location=${{ parameters.location }}' \
+        # -var-file=global_var.tfvars -var-file=${{ parameters.Environment }}_var.tfvars \
+        # -out="tfplan"
+      workingDirectory: ${{ parameters.TerraformDirectory }}
+      env:
+        ARM_SUBSCRIPTION_ID: $(subscription-id)
+        ARM_CLIENT_ID:       $(spn-id)
+        ARM_CLIENT_SECRET:   $(spn-secret)
+        ARM_TENANT_ID:       $(tenant-id)
+
+    - bash: |
+        # Save a human-friendly version of the plan with passwords hidden
+        terraform show -no-color tfplan > plan.txt
+        # Remove terraform plan from published artifacts, as it contains clear-text secrets
+        rm tfplan
+        # Resource providers can be > 100MB large, we don't want them in the published artifacts.
+        rm -r .terraform
+      displayName: Save plan text
+      workingDirectory: ${{ parameters.TerraformDirectory }}
+
+    - bash: |
+        echo "set current workig directory"
+        cd $(System.DefaultWorkingDirectory)
+        echo "current working directory"
+        pwd
+      displayName: setting artifacts path to root
+
+    - task: PublishPipelineArtifact@1
+      displayName: Publish plan artifact
+      inputs:
+        targetPath: $(System.DefaultWorkingDirectory)
+        artifact: terraform_resources_${{ parameters.Environment }}
+
+#-- terafrom validate and apply stage
+
+- stage: Terraform_Apply_${{ parameters.Environment }}
+  displayName: Apply ${{ parameters.Environment }}
+  jobs:
+  - deployment: Apply
+    environment: ${{ parameters.Environment }}
+    displayName: Apply Terraform
+    #condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/master'), variables['RUN_FLAG_TERRAFORM']))
+    pool:
+      vmImage: ubuntu-latest
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+
+          - task: DownloadPipelineArtifact@2
+            displayName: Download plan
+            inputs:
+              artifactName: terraform_resources_${{ parameters.Environment }}
+              targetPath: terraform_resources
+
+          - template: ./terraform-init-template.yml
+            parameters:
+              TerraformDirectory: terraform_resources/${{ parameters.TerraformDirectory }}
+              Environment: ${{ parameters.Environment }}
+              AzureSubscription: $(AzureSubscriptionServiceConnectionName)
+              provisionStorage: ${{ parameters.provisionStorage }}
+              location: ${{ parameters.location }}
+              locationshortprefix: ${{ parameters.locationshortprefix }}
+              TerraformVersion: ${{ parameters.TerraformVersion }}
+
+          # As the Terraform extension plan task doesn't support -detailed-exitcode
+          # (to check if any changes are present), we define an equivalent bash
+          # task instead.
+          - bash: |
+              set -eu
+              export ARM_CLIENT_SECRET=$(spn-secret)
+              # terraform plan -detailed-exitcode exit codes:
+              # 0 - Succeeded, diff is empty (no changes)
+              # 1 - Errored
+              # 2 - Succeeded, there is a diff
+              # >2 - unexpected, crash or bug
+              if terraform plan -detailed-exitcode -input=false -out=tfplan -var-file=global_var.tfvars -var-file=${{ parameters.Environment }}_var.tfvars -var 'Environment=${{ parameters.Environment }}' -var 'locationshortprefix=${{ parameters.locationshortprefix  }}' -var 'rg_location=${{ parameters.location }}'; then
+                echo "Terraform succeeded with no changes"
+                # NB terraform apply should still be run, e.g. if new outputs have been created
+              else
+                terraform_exitcode=$?
+                if [ $terraform_exitcode -eq 2 ]; then
+                  echo "Terraform succeeded with updates"
+                else
+                  echo "ERROR: terraform exited with code $terraform_exitcode"
+                  exit 1
+                fi
+              fi
+            displayName: Terraform plan 
+            workingDirectory: terraform_resources/${{ parameters.TerraformDirectory }}
+            env:
+              ARM_SUBSCRIPTION_ID: $(subscription-id)
+              ARM_CLIENT_ID:       $(spn-id)
+              ARM_CLIENT_SECRET:   $(spn-secret)
+              ARM_TENANT_ID:       $(tenant-id)
+          - bash: |
+              set -eux  # ensure pipeline stops if terraform fails or diff reports a difference
+              terraform show -no-color tfplan > newplan.txt
+              diff -u plan.txt newplan.txt
+            workingDirectory: terraform_resources/${{ parameters.TerraformDirectory }}
+            displayName: Check unchanged plan
+          - bash: |
+              set -eu
+              terraform apply -input=false -auto-approve tfplan
+            displayName: Terraform apply
+            workingDirectory: terraform_resources/${{ parameters.TerraformDirectory }}
+            env:
+              ARM_SUBSCRIPTION_ID: $(subscription-id)
+              ARM_CLIENT_ID:       $(spn-id)
+              ARM_CLIENT_SECRET:   $(spn-secret)
+              ARM_TENANT_ID:       $(tenant-id)

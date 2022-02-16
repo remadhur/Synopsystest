@@ -1,0 +1,121 @@
+#-- terraform backend-config azure template
+
+#-- Parameters
+parameters:
+#-- these parameters value should flow from master pipline --#
+- name: Environment
+  type: string
+- name: AzureSubscription
+  type: string
+- name: TerraformVersion
+  type: string
+- name: provisionStorage
+  type: string
+- name: TerraformDirectory
+  type: string
+- name: location
+  type: string
+- name: locationshortprefix
+  type: string
+#-- these parameters values are static for terrafrom backend config --#
+- name: prefix
+  type: string
+  default: tbs
+- name: component
+  type: string
+  default: terraform
+# -- resource shortprefix these should not change for terraform config #
+- name: resourcegroupshortprefix
+  type: string
+  default: 'rg'
+- name: storagaccounshortprefix
+  type: string
+  default: 'sa'
+
+steps:
+# Verify that the Environment parameter has been supplied to pipeline
+- script: |
+    set +e
+    if [ -z {{ parameters.Environment }} ]; then
+    echo "target Environment not specified";
+    exit 1;
+    fi
+    echo "Environment is:" {{ parameters.Environment }}
+  displayName: 'Verify that the Environment parameter has been supplied to pipeline'
+
+# Set Terraform backend if provisionStorage is set to true
+- task: AzureCLI@1
+  displayName: Set Terraform backend
+  condition: and(succeeded(), ${{ parameters.provisionStorage }})
+  inputs:
+    azureSubscription: ${{ parameters.AzureSubscription }}
+    scriptLocation: inlineScript
+    inlineScript: |
+      set -eu  # fail on error
+      RG='${{parameters.prefix }}-${{parameters.locationshortprefix }}-nld-${{parameters.Environment }}-${{parameters.component }}-${{parameters.resourcegroupshortprefix }}'
+      export AZURE_STORAGE_ACCOUNT='${{parameters.prefix }}${{parameters.locationshortprefix }}nld${{parameters.Environment }}${{parameters.component }}${{parameters.storagaccounshortprefix }}'
+      export AZURE_STORAGE_KEY="$(az storage account keys list -g $RG -n $AZURE_STORAGE_ACCOUNT --query '[0].value' -o tsv)"
+      if test -z "$AZURE_STORAGE_KEY"; then
+        az configure --defaults group=$RG location='${{ parameters.location }}'
+        az group create -n "$RG" -o none
+        az storage account create -n "$AZURE_STORAGE_ACCOUNT" -o none
+        export AZURE_STORAGE_KEY="$(az storage account keys list -g $RG -n $AZURE_STORAGE_ACCOUNT --query '[0].value' -o tsv)"
+      fi
+      container='${{parameters.prefix }}${{parameters.locationshortprefix }}nld${{parameters.Environment }}${{parameters.component }}container'
+      if ! az storage container show -n "$container" -o none 2>/dev/null; then
+        az storage container create -n "$container" -o none
+      fi
+      blob='${{parameters.prefix }}${{parameters.locationshortprefix }}nld${{parameters.Environment }}${{parameters.component }}.tfstate'
+      if [[ $(az storage blob exists -c "$container" -n "$blob" --query exists) = "true" ]]; then
+        if [[ $(az storage blob show -c "$container" -n "$blob" --query "properties.lease.status=='locked'") = "true" ]]; then
+          echo "State is leased"
+          lock_jwt=$(az storage blob show -c "$container" -n "$blob" --query metadata.terraformlockid -o tsv)
+          if [ "$lock_jwt" != "" ]; then
+            lock_json=$(base64 -d <<< "$lock_jwt")
+            echo "State is locked"
+            jq . <<< "$lock_json"
+          fi
+          if [ "${TERRAFORM_BREAK_LEASE:-}" != "" ]; then
+            az storage blob lease break -c "$container" -b "$blob"
+          else
+            echo "If you're really sure you want to break the lease, rerun the pipeline with variable TERRAFORM_BREAK_LEASE set to 1."
+            exit 1
+          fi
+        fi
+      fi
+    addSpnToEnvironment: true
+
+# Instaling terraform
+- task: TerraformInstaller@0
+  inputs:
+    terraformVersion: ${{ parameters.TerraformVersion }}
+
+# Validate the terraform version
+- task: AzureCLI@1
+  displayName: "Terraform Version"
+  inputs:
+    azureSubscription: ${{ parameters.AzureSubscription }}
+    scriptLocation: 'inlineScript'
+    inlineScript: 'terraform version'
+
+# Terraform init
+- task: AzureCLI@1
+  displayName: "Terraform Init"
+  inputs:
+    azureSubscription: ${{ parameters.AzureSubscription }}
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+        set -eux  # fail on error
+        subscriptionId=$(az account show --query id -o tsv)
+        echo "Terraform Init"
+        terraform init -input=false \
+        -backend-config="resource_group_name=${{parameters.prefix }}-${{parameters.locationshortprefix }}-nld-${{parameters.Environment }}-${{parameters.component }}-${{parameters.resourcegroupshortprefix }}" \
+        -backend-config="storage_account_name=${{parameters.prefix }}${{parameters.locationshortprefix }}nld${{parameters.Environment }}${{parameters.component }}${{parameters.storagaccounshortprefix }}" \
+        -backend-config="container_name=${{parameters.prefix }}${{parameters.locationshortprefix }}nld${{parameters.Environment }}${{parameters.component }}container" \
+        -backend-config="key=${{parameters.prefix }}${{parameters.locationshortprefix }}nld${{parameters.Environment }}${{parameters.component }}.tfstate" \
+        -backend-config="subscription_id=$(subscription-id)" \
+        -backend-config="tenant_id=$(tenant-id)" \
+        -backend-config="client_id=$(spn-id)" \
+        -backend-config="client_secret=$(spn-secret)"
+    workingDirectory: ${{ parameters.TerraformDirectory }}
+    addSpnToEnvironment: true
