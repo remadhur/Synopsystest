@@ -26,9 +26,6 @@ parameters:
   type: string
   default: sa
 
-variables:
-- group: dev-secrets
-
 #  Terraform Storage Provision should be enabled for the first time run of piplinline
 - name: TerraformStorageProvision
   type: boolean
@@ -36,6 +33,10 @@ variables:
   values:
   - true
   - false
+
+
+variables:
+- group: dev-secrets
 
 stages:
 - template: ./terraform-stages-template.yml
