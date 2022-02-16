@@ -41,10 +41,10 @@ parameters:
   - false
 
 variables: 
-- group: dev-secrets
+- group: Dev-Secrets
 
 stages:
- - template: $(System.DefaultWorkingDirectory)/virtualmachine_new/pipelines/terraform-init-template.yml
+ - template: ./terraform-init-template.yml
    parameters:
         TerraformDirectory: ${{ parameters.TerraformDirectory }}
         Environment: ${{ parameters.Environment }}
