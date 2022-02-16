@@ -1,0 +1,55 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- main
+
+name: Infrastructure Deployment - ${{ parameters.Environment }}-${{ parameters.location }}
+
+pool:
+  vmImage: ubuntu-latest
+
+parameters:
+- name: Environment
+  type: string
+  default: dev
+
+- name: TerraformDirectory
+  type: string
+  default: 'Deployment_Virtual_Machine'
+
+- name: TerraformVersion
+  type: string
+  default: '0.15.3'
+
+- name: location
+  type: string
+  default: Southeast Asia
+
+- name: locationshortprefix
+  type: string
+  default: sa
+
+#  Terraform Storage Provision should be enabled for the first time run of piplinline
+- name: provisionStorage
+  type: boolean
+  default: false
+  values:
+  - true
+  - false
+
+variables: 
+- group: dev-secrets
+
+stages:
+ - template: ./terraform-init-template.yml
+   parameters:
+        TerraformDirectory: ${{ parameters.TerraformDirectory }}
+        Environment: ${{ parameters.Environment }}
+        AzureSubscription: $(AzureSubscriptionServiceConnectionName)
+        provisionStorage: ${{ parameters.provisionStorage }}
+        location: ${{ parameters.location }}
+        locationshortprefix: ${{ parameters.locationshortprefix }}
+        TerraformVersion: ${{ parameters.TerraformVersion }}
