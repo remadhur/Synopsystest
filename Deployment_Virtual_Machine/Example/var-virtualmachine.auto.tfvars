@@ -53,7 +53,7 @@ linux_vm_nics = {
   }
 }
 
-administrator_user_name      = "demo"
+administrator_user_name      = "demouser"
 administrator_login_password = null
 
 diagnostics_sa_name = "terraformstatesaas"
