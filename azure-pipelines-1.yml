@@ -10,7 +10,7 @@ pool:
   vmImage: ubuntu-latest
 
 variables:
-- group: dev-secrets 
+- group: Dev-Secrets
 
 steps:
 - script: echo Hello, world!
