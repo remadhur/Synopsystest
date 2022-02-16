@@ -35,10 +35,6 @@ parameters:
   - true
   - false
 
-#-- Varibales
-variables:
-- group: terraform-secrets
-
 stages:
 - template: ./terraform-stages-template.yml
   parameters:
