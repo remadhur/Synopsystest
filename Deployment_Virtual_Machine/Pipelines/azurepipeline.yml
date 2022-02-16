@@ -10,7 +10,7 @@ parameters:
   type: string
   default: dev
 
-- name: TerraformMasterModuleDirectoryName
+- name: TerraformDirectory
   type: string
   default: 'Deployment_Virtual_Machine'
 
