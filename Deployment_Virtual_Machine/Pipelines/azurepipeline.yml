@@ -39,12 +39,12 @@ variables:
 - group: dev-secrets
 
 stages:
-- template: ./terraform-stages-template.yml
-  parameters:
-    Environment: ${{ parameters.Environment }}
-    AzureSubscription: $(AzureSubscriptionServiceConnectionName)
-    TerraformDirectory: ${{ parameters.TerraformMasterModuleDirectoryName }}
-    TerraformVersion: ${{ parameters.TerraformVersion }}
-    location: ${{ parameters.location }}
-    provisionStorage: ${{ parameters.TerraformStorageProvision }}
-    locationshortprefix: 'sa'
+ - template: ./terraform-init-template.yml
+   parameters:
+        TerraformDirectory: ${{ parameters.TerraformDirectory }}
+        Environment: ${{ parameters.Environment }}
+        AzureSubscription: $(AzureSubscriptionServiceConnectionName)
+        provisionStorage: ${{ parameters.provisionStorage }}
+        location: ${{ parameters.location }}
+        locationshortprefix: ${{ parameters.locationshortprefix }}
+        TerraformVersion: ${{ parameters.TerraformVersion }}
