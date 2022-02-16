@@ -20,11 +20,11 @@ parameters:
 
 - name: location
   type: string
-  default: eastus
+  default: Southeast Asia
 
 - name: locationshortprefix
   type: string
-  default: eu
+  default: sa
 
 
 #  Terraform Storage Provision should be enabled for the first time run of piplinline
@@ -44,5 +44,4 @@ stages:
     TerraformVersion: ${{ parameters.TerraformVersion }}
     location: ${{ parameters.location }}
     provisionStorage: ${{ parameters.TerraformStorageProvision }}
-    ${{ if eq( parameters.location, 'eastus' ) }}:
-     locationshortprefix: 'eu'
+    locationshortprefix: 'sa'
