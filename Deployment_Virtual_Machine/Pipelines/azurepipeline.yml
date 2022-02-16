@@ -27,7 +27,7 @@ parameters:
   default: sa
 
 #  Terraform Storage Provision should be enabled for the first time run of piplinline
-- name: TerraformStorageProvision
+- name: provisionStorage
   type: boolean
   default: false
   values:
