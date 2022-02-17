@@ -39,10 +39,10 @@ variables:
 - group: Dev-Secrets
 
 stages:
-- stage: Terraform_Plan_${{ parameters.Environment }}
-  displayName: Plan ${{ parameters.Environment }}
+- stage: Terraform_init_${{ parameters.Environment }}
+  displayName: init ${{ parameters.Environment }}
   jobs:
-  - job: Terraform_Plan
+  - job: Terraform_init
     displayName: Plan Terraform
     pool:
       vmImage: ubuntu-latest
@@ -52,6 +52,13 @@ stages:
       inputs:
         terraformVersion: ${{ parameters.TerraformVersion }}
         
+    - task: AzureCLI@1
+      displayName: "Terraform Version"
+      inputs:
+       azureSubscription: ${{ parameters.AzureSubscription }}
+       scriptLocation: 'inlineScript'
+       inlineScript: 'terraform version'
+
     # Terraform init
     - task: AzureCLI@1
       displayName: "Terraform Init"
@@ -74,3 +81,81 @@ stages:
        workingDirectory: ${{ parameters.TerraformDirectory }}
        addSpnToEnvironment: true
 
+- stage: Terraform_Plan_${{ parameters.Environment }}
+  displayName: Plan ${{ parameters.Environment }}
+  jobs:
+  - job: Terraform_Plan
+    displayName: Plan Terraform
+    # Avoid concurrent Terraform runs on PRs, which would result in failures due to exclusive lock on remote state file.
+    # condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/master'), variables['RUN_FLAG_TERRAFORM']))
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - bash: |
+        set -eu
+        export ARM_CLIENT_SECRET=$(spn-secret)
+        echo "current working directory"
+        pwd
+        echo "list of files avalibale in the current directory"
+        ls -la
+        terraform plan -input=false -out=tfplan -var-file=global_var.tfvars -var-file=${{ parameters.Environment }}_var.tfvars -var 'Environment=${{ parameters.Environment }}' -var 'locationshortprefix=${{ parameters.locationshortprefix  }}' -var 'rg_location=${{ parameters.location }}'
+      workingDirectory: ${{ parameters.TerraformDirectory }}
+      env:
+        ARM_SUBSCRIPTION_ID: $(subscription-id)
+        ARM_CLIENT_ID:       $(spn-id)
+        ARM_CLIENT_SECRET:   $(spn-secret)
+        ARM_TENANT_ID:       $(tenant-id)
+    - bash: |
+        echo "set current workig directory"
+        cd $(System.DefaultWorkingDirectory)
+        echo "current working directory"
+        pwd
+      displayName: setting artifacts path to root
+    - task: PublishPipelineArtifact@1
+      displayName: Publish plan artifact
+      inputs:
+        targetPath: $(System.DefaultWorkingDirectory)
+        artifact: terraform_resources_${{ parameters.Environment }}
+
+#-- terafrom validate and apply stage
+
+- stage: Terraform_Apply_${{ parameters.Environment }}
+  displayName: Apply ${{ parameters.Environment }}
+  jobs:
+  - deployment: Apply
+    environment: ${{ parameters.Environment }}
+    displayName: Apply Terraform
+    #condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/master'), variables['RUN_FLAG_TERRAFORM']))
+    pool:
+      vmImage: ubuntu-latest
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+
+          - task: DownloadPipelineArtifact@2
+            displayName: Download plan
+            inputs:
+              artifactName: terraform_resources_${{ parameters.Environment }}
+              targetPath: terraform_resources
+
+          - template: ./terraform-init-template.yml
+            parameters:
+              TerraformDirectory: terraform_resources/${{ parameters.TerraformDirectory }}
+              Environment: ${{ parameters.Environment }}
+              AzureSubscription: $(AzureSubscriptionServiceConnectionName)
+              provisionStorage: ${{ parameters.provisionStorage }}
+              location: ${{ parameters.location }}
+              locationshortprefix: ${{ parameters.locationshortprefix }}
+              TerraformVersion: ${{ parameters.TerraformVersion }}
+
+          - bash: |
+              set -eu
+              terraform apply -input=false -auto-approve tfplan
+            displayName: Terraform apply
+            workingDirectory: terraform_resources/${{ parameters.TerraformDirectory }}
+            env:
+              ARM_SUBSCRIPTION_ID: $(subscription-id)
+              ARM_CLIENT_ID:       $(spn-id)
+              ARM_CLIENT_SECRET:   $(spn-secret)
+              ARM_TENANT_ID:       $(tenant-id)
