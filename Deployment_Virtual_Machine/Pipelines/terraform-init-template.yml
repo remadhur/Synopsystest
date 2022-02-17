@@ -86,7 +86,7 @@ steps:
     addSpnToEnvironment: true
 
 # Instaling terraform
-- task: TerraformInstaller
+- task: ms-devlabs.custom-terraform-tasks.custom-terraform-installer-task.TerraformInstaller@0
   displayName: install terraform
   inputs:
     terraformVersion: latest
