@@ -50,18 +50,6 @@ stages:
       vmImage: ubuntu-latest
     steps:
 
-tages:
-- stage: Terraform_Plan_${{ parameters.Environment }}
-  displayName: Plan ${{ parameters.Environment }}
-  jobs:
-  - job: Terraform_Plan
-    displayName: Plan Terraform
-    # Avoid concurrent Terraform runs on PRs, which would result in failures due to exclusive lock on remote state file.
-    # condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/master'), variables['RUN_FLAG_TERRAFORM']))
-    pool:
-      vmImage: ubuntu-latest
-    steps:
-
     - template: ./terraform-init-template.yml
       parameters:
         Environment: ${{ parameters.Environment }}
@@ -79,7 +67,7 @@ tages:
         pwd
         echo "list of files avalibale in the current directory"
         ls -la
-        terraform plan -input=false -out=tfplan -var-file=global_var.tfvars -var-file=${{ parameters.Environment }}_var.tfvars -var 'Environment=${{ parameters.Environment }}' -var 'locationshortprefix=${{ parameters.locationshortprefix  }}' -var 'rg_location=${{ parameters.location }}'
+        terraform plan -input=false -out=tfplan
         # terraform plan \
         # -input=false \
         # -var 'Environment=${{ parameters.Environment }}' \
