@@ -9,12 +9,6 @@ trigger:
 pool:
   vmImage: ubuntu-latest
 
--stages:
-- stage: Deploy
-  displayName: Deploy
-  jobs:
-  - job: VM deployment
-    displayName: VM deployment
 steps:
 - task: ms-devlabs.custom-terraform-tasks.custom-terraform-installer-task.TerraformInstaller@0
   inputs:
@@ -43,10 +37,6 @@ steps:
     workingDirectory: '(System.DefaultWorkingDirectory)/Deployment_Virtual_Machine'
     environmentServiceNameAzureRM: 'Microsoft Azure Internal Consumption'
 
--jobs:
-  - job: VM configuration
-    displayName: VM configuration
-steps:
 - task: AzureKeyVault@2
   inputs:
     azureSubscription: 'Microsoft Azure Internal Consumption'
@@ -59,6 +49,20 @@ steps:
     script: |
       echo Hello world
       echo $(akvsecretname) > linuxsshkey.pem
+- task: PowerShell@2
+  inputs:
+    targetType: 'inline'
+    script: |
+      $personalToken = "s6walyz36akhapyt25l54qhcmikkpcwe4wjynndjbm5qfxu4z23a"
+          $organisation = "Synopsys-Saas"
+          $ProjectName = "SaaS-lightning"
+          $AzureDevOpsAuthenicationHeader = @{Authorization = 'Basic ' + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$($personalToken)")) }
+          $UriOrga = "https://$($organisation).visualstudio.com/" 
+          $UriOrga
+          $uriAccount = $UriOrga + "_apis/projects?api-version=6.0"
+          $response = Invoke-RestMethod -Uri $uriAccount -Method get -Headers $AzureDevOpsAuthenicationHeader
+          $Project = $response.value | where { $_.Name -eq $projectName }
+          $id = $Project.id
 
 - task: PowerShell@2
   inputs:
@@ -73,73 +77,58 @@ steps:
               Authorization=("Basic {0}" -f $base64AuthInfo)
           }
           Invoke-RestMethod -Uri $uploadSecureFileURI -Method Post -ContentType "application/octet-stream" -Headers $headers -InFile "$SecureNameFilePath2Upload"
-
 - task: PowerShell@2
   inputs:
     targetType: 'inline'
     script: |
-     $personalToken = "s6walyz36akhapyt25l54qhcmikkpcwe4wjynndjbm5qfxu4z23a"
-$organisation = "Synopsys-Saas"
-$ProjectName = "SaaS-lightning"
-$AzureDevOpsAuthenicationHeader = @{Authorization = 'Basic ' + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$($personalToken)")) }
-$UriOrga = "https://$($organisation).visualstudio.com/" 
-$UriOrga
-$uriAccount = $UriOrga + "_apis/projects?api-version=6.0"
-$response = Invoke-RestMethod -Uri $uriAccount -Method get -Headers $AzureDevOpsAuthenicationHeader
-$Project = $response.value | where { $_.Name -eq $projectName }
-$id = $Project.id
-
-- task: PowerShell@2
-  inputs:
-    targetType: 'inline'
-    script: |
-     $token = "s6walyz36akhapyt25l54qhcmikkpcwe4wjynndjbm5qfxu4z23a"
-$hostipaddress="10.1.0.4"
-$privatekey="$(akvsecretname)"
-$base64AuthInfo = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(("{0}:{1}" -f $user,$token)))
-$org = "Synopsys-Saas"
-$Project = "SaaS-lightning"
-$restApiRunBuild = "https://dev.azure.com/$org/$project/_apis/serviceendpoint/endpoints?api-version=5.0-preview.2"
-$bodyjson = @{
- "data"= @{
-         "Host"= "10.1.0.4"
-         "Port"= "22"
-         "PrivateKey"=$(akvsecretname)
-          }
-  "type" ="ssh"
-  "name"= "sshServiceEndpoint"
-  "description" =  "Creation of SSH connection for linux virtaul machine"
-   "authorization"=@{
-                       "parameters"= @{
-                       username="demouser"
-                       }
-                        "scheme"=  "UsernamePassword"
-                       }
-    "isShared"= "false"
-     "isReady"= "true"
-     "owner" = "Library"
-  "serviceEndpointProjectReferences"= @{
-      "projectReference"=@{
-        "id"= $id
-        "name"= $project
+      $token = "s6walyz36akhapyt25l54qhcmikkpcwe4wjynndjbm5qfxu4z23a"
+           $hostipaddress="10.1.0.4"
+           $privatekey="$(akvsecretname)"
+           $base64AuthInfo = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(("{0}:{1}" -f $user,$token)))
+           $org = "Synopsys-Saas"
+           $Project = "SaaS-lightning"
+           $restApiRunBuild = "https://dev.azure.com/$org/$project/_apis/serviceendpoint/endpoints?api-version=5.0-preview.2"
+           $bodyjson = @{
+                        "data"= @{
+                               "Host"= "10.1.0.4"
+                               "Port"= "22"
+                               "PrivateKey"=$(akvsecretname)
+                                  }
+                       "type" ="ssh"
+                       "name"= "sshServiceEndpoint"
+                       "description" =  "Creation of SSH connection for linux virtaul machine"
+                       "authorization"=@{
+                             "parameters"= @{
+                             username="demouser"
+                             }
+                              "scheme"=  "UsernamePassword"
+                             }
+                       "isShared"= "false"
+                       "isReady"= "true"
+                       "owner" = "Library"
+                        "serviceEndpointProjectReferences"= @{
+                        "projectReference"=@{
+                          "id"= $id
+                          "name"= $project
+              }
       }
-    }
-} | ConvertTo-Json
+      } | ConvertTo-Json
+      
+      function InvokePostReques ($PostUrl, $body)
+      {
+      Write-Host $PostUrl
+      Write-Host "======================"
+      Write-Host $body
+      return Invoke-RestMethod -Uri $PostUrl -Method Post -ContentType "application/json" -Headers @{Authorization=("Basic {0}" -f $base64AuthInfo)} -Body $body
+      }
+      $result = InvokePostReques $restApiRunBuild $bodyjson
 
-function InvokePostReques ($PostUrl, $body)
-{
-Write-Host $PostUrl
-Write-Host "======================"
-Write-Host $body
-return Invoke-RestMethod -Uri $PostUrl -Method Post -ContentType "application/json" -Headers @{Authorization=("Basic {0}" -f $base64AuthInfo)} -Body $body
-}
-$result = InvokePostReques $restApiRunBuild $bodyjson
-
-- task: PublishBuildArtifacts@1
+- task: PublishPipelineArtifact@1
   inputs:
-    PathtoPublish: '$(Build.ArtifactStagingDirectory)'
-    ArtifactName: 'drop'
-    publishLocation: 'Container'
+    targetPath: '$(Pipeline.Workspace)'
+    artifact: 'Vmconfiguration'
+    publishLocation: 'pipeline'
+
 
 
 
