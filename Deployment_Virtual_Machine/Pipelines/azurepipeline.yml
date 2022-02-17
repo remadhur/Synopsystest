@@ -39,7 +39,7 @@ variables:
 - group: Dev-Secrets
 
 stages:
- - template: ./terraform-init-template.yml
+ - template: ./terraform-stages-template.yml
    parameters:
         TerraformDirectory: ${{ parameters.TerraformDirectory }}
         Environment: ${{ parameters.Environment }}
