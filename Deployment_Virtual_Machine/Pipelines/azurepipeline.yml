@@ -39,8 +39,8 @@ variables:
 - group: Dev-Secrets
 
 stages:
-- stage: VirtualMachine Deployment
-  displayName: VirtualMachine Deployment
+- stage: VirtualMachine_Deployment
+  displayName: VirtualMachine_Deployment
   jobs:
   - job: Terraform_Plan
     displayName: Plan Terraform
