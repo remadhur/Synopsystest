@@ -55,7 +55,7 @@ stages:
     - task: AzureCLI@1
       displayName: "Terraform Version"
       inputs:
-       azureSubscription: ${{ parameters.AzureSubscription }}
+       azureSubscription: $"(AzureSubscriptionServiceConnectionName)"
        scriptLocation: 'inlineScript'
        inlineScript: 'terraform version'
 
@@ -63,7 +63,7 @@ stages:
     - task: AzureCLI@1
       displayName: "Terraform Init"
       inputs:
-       azureSubscription: $"(AzureSubscriptionServiceConnectionName)""
+       azureSubscription: $"(AzureSubscriptionServiceConnectionName)"
        scriptLocation: 'inlineScript'
        inlineScript: |
         set -eux  # fail on error
