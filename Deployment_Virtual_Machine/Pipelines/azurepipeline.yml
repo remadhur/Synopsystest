@@ -48,15 +48,6 @@ stages:
     pool:
       vmImage: ubuntu-latest
     steps:
-    - task: TerraformInstaller@0
-      displayName: 'Install Terraform latest'
-        
-    - task: AzureCLI@1
-      displayName: "Terraform Version"
-      inputs:
-       azureSubscription: $"(AzureSubscriptionServiceConnectionName)"
-       scriptLocation: 'inlineScript'
-       inlineScript: 'terraform version'
 
     # Terraform init
     - task: AzureCLI@1
