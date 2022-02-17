@@ -51,6 +51,6 @@ stages:
     TerraformDirectory: ${{ parameters.TerraformDirectory}}
     TerraformVersion: ${{ parameters.TerraformVersion }}
     location: ${{ parameters.location }}
-    provisionStorage: ${{ parameters.TerraformStorageProvision }}
+    provisionStorage: ${{ parameters.provisionStorage }}
     ${{ if eq( parameters.location, 'Southeast Asia' ) }}:
      locationshortprefix: 'sa'
