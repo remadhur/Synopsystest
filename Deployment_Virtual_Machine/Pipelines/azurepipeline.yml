@@ -49,48 +49,30 @@ stages:
     pool:
       vmImage: ubuntu-latest
     steps:
-    - bash: |
-        set -eu
-        export ARM_CLIENT_SECRET=$(spn-secret)
-        echo "current working directory"
-        pwd
-        echo "list of files avalibale in the current directory"
-        ls -la
-        terraform plan -input=false -out=tfplan -var-file=global_var.tfvars -var-file=${{ parameters.Environment }}_var.tfvars -var 'Environment=${{ parameters.Environment }}' -var 'locationshortprefix=${{ parameters.locationshortprefix  }}' -var 'rg_location=${{ parameters.location }}'
-        # terraform plan \
-        # -input=false \
-        # -var 'Environment=${{ parameters.Environment }}' \
-        # -var 'locationshortprefix=${{ parameters.locationshortprefix  }}' \
-        # -var 'rg_location=${{ parameters.location }}' \
-        # -var-file=global_var.tfvars -var-file=${{ parameters.Environment }}_var.tfvars \
-        # -out="tfplan"
-      workingDirectory: ${{ parameters.TerraformDirectory }}
-      env:
-        ARM_SUBSCRIPTION_ID: $(subscription-id)
-        ARM_CLIENT_ID:       $(spn-id)
-        ARM_CLIENT_SECRET:   $(spn-secret)
-        ARM_TENANT_ID:       $(tenant-id)
-
-    - bash: |
-        # Save a human-friendly version of the plan with passwords hidden
-        terraform show -no-color tfplan > plan.txt
-        # Remove terraform plan from published artifacts, as it contains clear-text secrets
-        rm tfplan
-        # Resource providers can be > 100MB large, we don't want them in the published artifacts.
-        rm -r .terraform
-      displayName: Save plan text
-      workingDirectory: ${{ parameters.TerraformDirectory }}
-
-    - bash: |
-        echo "set current workig directory"
-        cd $(System.DefaultWorkingDirectory)
-        echo "current working directory"
-        pwd
-      displayName: setting artifacts path to root
-
-    - task: PublishPipelineArtifact@1
-      displayName: Publish plan artifact
+    # Instaling terraform
+    - task: TerraformInstaller@0
       inputs:
-        targetPath: $(System.DefaultWorkingDirectory)
-        artifact: terraform_resources_${{ parameters.Environment }}
+        terraformVersion: ${{ parameters.TerraformVersion }}
+        
+    # Terraform init
+    - task: AzureCLI@1
+      displayName: "Terraform Init"
+      inputs:
+       azureSubscription: ${{ parameters.AzureSubscription }}
+       scriptLocation: 'inlineScript'
+       inlineScript: |
+        set -eux  # fail on error
+        subscriptionId=$(az account show --query id -o tsv)
+        echo "Terraform Init"
+        terraform init -input=false \
+        -backend-config="resource_group_name=$"(tf-resourcegroup)" \
+        -backend-config="storage_account_name=$"(tf-storageaccount)" \
+        -backend-config="container_name=$"(tf-containername)" \
+        -backend-config="key=$"(tf-statekey)" \
+        -backend-config="subscription_id=$(subscription-id)" \
+        -backend-config="tenant_id=$(tenant-id)" \
+        -backend-config="client_id=$(spn-id)" \
+        -backend-config="client_secret=$(spn-secret)"
+       workingDirectory: ${{ parameters.TerraformDirectory }}
+       addSpnToEnvironment: true
 
