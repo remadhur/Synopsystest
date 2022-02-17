@@ -48,9 +48,10 @@ stages:
       vmImage: ubuntu-latest
     steps:
     # Instaling terraform
-    - task: TerraformTool@0
+    - task: TerraformInstaller@0
+      displayName: 'install'
       inputs:
-        version: '0.11.8'
+        terraformVersion: 'latest'
         
     - task: AzureCLI@1
       displayName: "Terraform Version"
