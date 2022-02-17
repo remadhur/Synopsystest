@@ -39,17 +39,14 @@ variables:
 - group: Dev-Secrets
 
 stages:
-- stage: Terraform_Plan_${{ parameters.Environment }}
-  displayName: Plan ${{ parameters.Environment }}
+- stage: VirtualMachine Deployment
+  displayName: VirtualMachine Deployment
   jobs:
   - job: Terraform_Plan
     displayName: Plan Terraform
-    # Avoid concurrent Terraform runs on PRs, which would result in failures due to exclusive lock on remote state file.
-    # condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/master'), variables['RUN_FLAG_TERRAFORM']))
     pool:
       vmImage: ubuntu-latest
     steps:
-
     - template: ./terraform-init-template.yml
       parameters:
         Environment: ${{ parameters.Environment }}
