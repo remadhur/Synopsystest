@@ -39,6 +39,7 @@ variables:
 - group: Dev-Secrets
 
 stages:
+
 - stage: Terraform_init_${{ parameters.Environment }}
   displayName: init ${{ parameters.Environment }}
   jobs:
@@ -49,7 +50,7 @@ stages:
     steps:
     - task: TerraformInstaller@0
       inputs:
-       terraformVersion: 'latest'
+        terraformVersion: 'latest'
         
     - task: AzureCLI@1
       displayName: "Terraform Version"
