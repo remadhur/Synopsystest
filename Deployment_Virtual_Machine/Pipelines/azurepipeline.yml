@@ -49,17 +49,6 @@ stages:
     pool:
       vmImage: ubuntu-latest
     steps:
-
-    - template: ./terraform-init-template.yml
-      parameters:
-        Environment: ${{ parameters.Environment }}
-        TerraformDirectory: ${{ parameters.TerraformDirectory }}
-        provisionStorage: ${{ parameters.provisionStorage }}
-        AzureSubscription: $(AzureSubscriptionServiceConnectionName)
-        location: ${{ parameters.location }}
-        locationshortprefix: ${{ parameters.locationshortprefix }}
-        TerraformVersion: ${{ parameters.TerraformVersion }}
-
     - bash: |
         set -eu
         export ARM_CLIENT_SECRET=$(spn-secret)
