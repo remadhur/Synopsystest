@@ -10,9 +10,10 @@ pool:
   vmImage: ubuntu-latest
 
 steps:
-- task: ms-devlabs.custom-terraform-tasks.custom-terraform-installer-task.TerraformInstaller@0
+- task: TerraformInstaller@0
   inputs:
     terraformVersion: 'latest'
+    
 - task: TerraformTaskV2@2
   inputs:
     provider: 'azurerm'
