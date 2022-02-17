@@ -39,12 +39,69 @@ variables:
 - group: Dev-Secrets
 
 stages:
- - template: ./terraform-stages-template.yml
-   parameters:
-        TerraformDirectory: ${{ parameters.TerraformDirectory }}
+- stage: Terraform_Plan_${{ parameters.Environment }}
+  displayName: Plan ${{ parameters.Environment }}
+  jobs:
+  - job: Terraform_Plan
+    displayName: Plan Terraform
+    # Avoid concurrent Terraform runs on PRs, which would result in failures due to exclusive lock on remote state file.
+    # condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/master'), variables['RUN_FLAG_TERRAFORM']))
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+
+    - template: ./terraform-init-template.yml
+      parameters:
         Environment: ${{ parameters.Environment }}
-        AzureSubscription: $(AzureSubscriptionServiceConnectionName)
+        TerraformDirectory: ${{ parameters.TerraformDirectory }}
         provisionStorage: ${{ parameters.provisionStorage }}
+        AzureSubscription: $(AzureSubscriptionServiceConnectionName)
         location: ${{ parameters.location }}
         locationshortprefix: ${{ parameters.locationshortprefix }}
         TerraformVersion: ${{ parameters.TerraformVersion }}
+
+    - bash: |
+        set -eu
+        export ARM_CLIENT_SECRET=$(spn-secret)
+        echo "current working directory"
+        pwd
+        echo "list of files avalibale in the current directory"
+        ls -la
+        terraform plan -input=false -out=tfplan -var-file=global_var.tfvars -var-file=${{ parameters.Environment }}_var.tfvars -var 'Environment=${{ parameters.Environment }}' -var 'locationshortprefix=${{ parameters.locationshortprefix  }}' -var 'rg_location=${{ parameters.location }}'
+        # terraform plan \
+        # -input=false \
+        # -var 'Environment=${{ parameters.Environment }}' \
+        # -var 'locationshortprefix=${{ parameters.locationshortprefix  }}' \
+        # -var 'rg_location=${{ parameters.location }}' \
+        # -var-file=global_var.tfvars -var-file=${{ parameters.Environment }}_var.tfvars \
+        # -out="tfplan"
+      workingDirectory: ${{ parameters.TerraformDirectory }}
+      env:
+        ARM_SUBSCRIPTION_ID: $(subscription-id)
+        ARM_CLIENT_ID:       $(spn-id)
+        ARM_CLIENT_SECRET:   $(spn-secret)
+        ARM_TENANT_ID:       $(tenant-id)
+
+    - bash: |
+        # Save a human-friendly version of the plan with passwords hidden
+        terraform show -no-color tfplan > plan.txt
+        # Remove terraform plan from published artifacts, as it contains clear-text secrets
+        rm tfplan
+        # Resource providers can be > 100MB large, we don't want them in the published artifacts.
+        rm -r .terraform
+      displayName: Save plan text
+      workingDirectory: ${{ parameters.TerraformDirectory }}
+
+    - bash: |
+        echo "set current workig directory"
+        cd $(System.DefaultWorkingDirectory)
+        echo "current working directory"
+        pwd
+      displayName: setting artifacts path to root
+
+    - task: PublishPipelineArtifact@1
+      displayName: Publish plan artifact
+      inputs:
+        targetPath: $(System.DefaultWorkingDirectory)
+        artifact: terraform_resources_${{ parameters.Environment }}
+
