@@ -48,7 +48,7 @@ stages:
   parameters:
     Environment: ${{ parameters.Environment }}
     AzureSubscription: $(AzureSubscriptionServiceConnectionName)
-    TerraformDirectory: ${{ parameters.TerraformMasterModuleDirectoryName }}
+    TerraformDirectory: ${{ parameters.TerraformDirectory}}
     TerraformVersion: ${{ parameters.TerraformVersion }}
     location: ${{ parameters.location }}
     provisionStorage: ${{ parameters.TerraformStorageProvision }}
