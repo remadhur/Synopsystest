@@ -148,7 +148,7 @@ stages:
               # 1 - Errored
               # 2 - Succeeded, there is a diff
               # >2 - unexpected, crash or bug
-              if terraform plan -detailed-exitcode -input=false -out=tfplan -var-file=global_var.tfvars -var-file=${{ parameters.Environment }}_var.tfvars -var 'Environment=${{ parameters.Environment }}' -var 'locationshortprefix=${{ parameters.locationshortprefix  }}' -var 'rg_location=${{ parameters.location }}'; then
+              if terraform plan -detailed-exitcode -input=false -out=tfplan then
                 echo "Terraform succeeded with no changes"
                 # NB terraform apply should still be run, e.g. if new outputs have been created
               else
