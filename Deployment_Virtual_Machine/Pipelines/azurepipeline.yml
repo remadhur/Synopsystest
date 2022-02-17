@@ -36,7 +36,7 @@ parameters:
 
 
 variables:
-- group: dev-secrets
+- group: Dev-Secrets
 
 stages:
  - template: ./terraform-init-template.yml
