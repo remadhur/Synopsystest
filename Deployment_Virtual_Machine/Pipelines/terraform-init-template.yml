@@ -86,9 +86,10 @@ steps:
     addSpnToEnvironment: true
 
 # Instaling terraform
-- task: TerraformInstaller@0
+- task: TerraformInstaller
+  displayName: install terraform
   inputs:
-    terraformVersion: ${{ parameters.TerraformVersion }}
+    terraformVersion: latest
 
 # Validate the terraform version
 - task: AzureCLI@1
