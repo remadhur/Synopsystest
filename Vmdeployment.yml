@@ -10,40 +10,6 @@ pool:
   vmImage: ubuntu-latest
 
 steps:
-- task: ms-devlabs.custom-terraform-tasks.custom-terraform-installer-task.TerraformInstaller@0
-  inputs:
-    terraformVersion: 'latest'
-    
-- task: TerraformTaskV2@2
-  inputs:
-    provider: 'azurerm'
-    command: 'init'
-    workingDirectory: '$(System.DefaultWorkingDirectory)/Deployment_Virtual_Machine'
-    backendServiceArm: 'Microsoft Azure Internal Consumption'
-    backendAzureRmResourceGroupName: 'Terraformpractice'
-    backendAzureRmStorageAccountName: 'terraformstatesaas'
-    backendAzureRmContainerName: 'terraform'
-    backendAzureRmKey: 'terraform03.tfstate'
-- task: TerraformTaskV2@2
-  inputs:
-    provider: 'azurerm'
-    command: 'plan'
-    workingDirectory: '$(System.DefaultWorkingDirectory)/Deployment_Virtual_Machine'
-    environmentServiceNameAzureRM: 'Microsoft Azure Internal Consumption'
-
-- task: TerraformTaskV2@2
-  inputs:
-    provider: 'azurerm'
-    command: 'apply'
-    workingDirectory: '(System.DefaultWorkingDirectory)/Deployment_Virtual_Machine'
-    environmentServiceNameAzureRM: 'Microsoft Azure Internal Consumption'
-
-- task: AzureKeyVault@2
-  inputs:
-    azureSubscription: 'Microsoft Azure Internal Consumption'
-    KeyVaultName: $(AzureKeyVault)
-    SecretsFilter: '*'
-    RunAsPreJob: true
 
 - task: CmdLine@2
   inputs:
